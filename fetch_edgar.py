@@ -34,10 +34,29 @@ def main():
     ap.add_argument("--days", type=int, default=400)
     a = ap.parse_args()
     syms = pd.read_csv(HERE / "sp600.csv")["symbol"].astype(str).tolist()[: a.max]
-    j = _get_json("https://www.sec.gov/files/company_tickers.json")
-    if j is None:
-        raise SystemExit("[edgar] company_tickers.json unreachable")
-    cmap = {v["ticker"].upper().replace(".", "-"): int(v["cik_str"]) for v in j.values()}
+    # CIK map: www.sec.gov blocks datacenter IPs (403) -> primary source = Wikipedia table (CIK column).
+    cmap = {}
+    try:
+        for t in pd.read_html("https://en.wikipedia.org/wiki/List_of_S%26P_600_companies",
+                              storage_options={"User-Agent": UA["User-Agent"]}):
+            cols = [str(c).strip().lower() for c in t.columns]
+            if "cik" in cols and ("symbol" in cols or "ticker" in cols):
+                t.columns = cols
+                sym_col = "symbol" if "symbol" in cols else "ticker"
+                for sym, cik in zip(t[sym_col].astype(str), t["cik"]):
+                    try:
+                        cmap[sym.upper().replace(".", "-")] = int(cik)
+                    except Exception:
+                        pass
+                break
+    except Exception as e:
+        print(f"[edgar] wikipedia cik fail: {type(e).__name__}", flush=True)
+    if not cmap:
+        j = _get_json("https://www.sec.gov/files/company_tickers.json")
+        if j is None:
+            raise SystemExit("[edgar] no CIK source reachable")
+        cmap = {v["ticker"].upper().replace(".", "-"): int(v["cik_str"]) for v in j.values()}
+    print(f"[edgar] cik map: {len(cmap)} symbols", flush=True)
     cutoff = (pd.Timestamp.today() - pd.Timedelta(days=a.days)).strftime("%Y-%m-%d")
     f8k, f4 = defaultdict(dict), defaultdict(dict)
     ok = fail = 0
