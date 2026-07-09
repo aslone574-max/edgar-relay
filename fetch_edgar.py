@@ -21,8 +21,9 @@ def _get_json(url, tries=4):
             r = requests.get(url, headers=UA, timeout=30)
             if r.status_code == 200 and r.headers.get("content-type", "").startswith("application/json"):
                 return r.json()
-        except Exception:
-            pass
+            print(f"[edgar] {url[:60]} -> HTTP {r.status_code} ct={r.headers.get('content-type','')[:40]} body={r.text[:120]!r}", flush=True)
+        except Exception as e:
+            print(f"[edgar] {url[:60]} -> {type(e).__name__}", flush=True)
         time.sleep(1.5 * (i + 1))
     return None
 
