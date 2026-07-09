@@ -1,0 +1,24 @@
+name: edgar
+on:
+  schedule:
+    - cron: "10 22 * * 1-5"   # 22:10 UTC = 07:10 KST, MON-FRI (after US close)
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install --quiet requests pandas
+      - run: python fetch_edgar.py --max 200 --days 400
+      - run: |
+          git config user.name "edgar-relay-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add out/
+          git diff --cached --quiet || git commit -m "edgar $(date -u +%F)"
+          git push
